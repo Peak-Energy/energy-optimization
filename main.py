@@ -5,32 +5,35 @@ energies = [1,2,3]
 quarters = [1,2,3,4]
 
 # Such structure for variable limits
-production_lim = {
-    (1,1): 10000, (1,2): 8000, (1,3): 5000,
+production_upper_lim = {
+    (1,1): 10000, (1,2): 8000, (1,3): 6000,
     (2,1): 9000, (2,2): 5000, (2,3): 10000,
-    (3,1): 10000, (3,2): 4000, (3,3): 11000,
+    (3,1): 10000, (3,2): 5000, (3,3): 11000,
     (4,1): 9000, (4,2): 7000, (4,3): 7000,
 }
 storage_lim = 15000
 
 # Such structure for parameters
 demand = {
-    1: 15000, 2: 11000, 3: 12000, 4: 17000
+    1: 20000, 2: 30000, 3: 18000, 4: 22000
 }
 
 storage_cost = {
-    1: 30, 2: 10, 3: 20
+    1: 2, 2: 0, 3: 5
 }
 
 production_cost = {
-    1: 10, 2: 15, 3: 5
+    (1,1): 5, (1,2): 5, (1,3): 3,
+    (2,1): 10, (2,2): 7, (2,3): 5,
+    (3,1): 6, (3,2): 5, (3,3): 2,
+    (4,1): 5, (4,2): 6, (4,3): 2,
 }
 
 # Model
 model = gurobipy.Model('Energy optimisation')
 
 # Variables
-X = model.addVars(quarters, energies, name='Amount supplied', ub=production_lim)
+X = model.addVars(quarters, energies, name='Amount supplied', ub=production_upper_lim)
 Y = model.addVars(quarters, energies, name='Amount remained')
 Z = model.addVars(quarters, energies, name='Amount used')
 
@@ -39,7 +42,6 @@ Z = model.addVars(quarters, energies, name='Amount used')
 model.addConstrs(
     (
         Y[quarters[q_ind - 1], energy] + X[quarter, energy]
-        + X[quarter, energy] 
         == Z[quarter, energy] + Y[quarter, energy]
         for energy in energies for q_ind, quarter in enumerate(quarters)
         if quarter != quarters[0]
@@ -48,17 +50,29 @@ model.addConstrs(
 )
 model.addConstrs(
     (
-        Y[quarters[0], energy] == Y[quarters[-1], energy] for energy in energies
+        X[quarters[0], energy]
+        == Z[quarters[0], energy] + Y[quarters[0], energy]
+        for energy in energies
     ),
-    name='Energy balance'
+    name="Energy balance"
 )
 
 # Demand
 model.addConstrs(
     (
         gurobipy.quicksum(
-            X[quarter, energy] for energy in energies 
-        ) >= demand[quarter] for quarter in quarters
+        Y[quarters[q_ind - 1], energy] + X[quarter, energy] for energy in energies
+        ) >= demand[quarter] 
+        for q_ind, quarter in enumerate(quarters) 
+        if quarter != quarters[0]
+    ),
+    name='Demand'
+)
+model.addConstr(
+    (
+        gurobipy.quicksum(
+        X[quarters[0], energy] for energy in energies
+        ) >= demand[quarters[0]] 
     ),
     name='Demand'
 )
@@ -75,7 +89,7 @@ model.addConstrs(
 
 # Objective function
 obj = gurobipy.quicksum(
-    (production_cost[energy]*X[quarter, energy])
+    (production_cost[quarter, energy]*X[quarter, energy])
     + (storage_cost[energy]*Y[quarter, energy])
     for energy in energies 
     for quarter in quarters 
