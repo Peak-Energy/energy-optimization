@@ -20,3 +20,13 @@ class Data:
         for col, value in row.items()
         if col not in ["month", "demand"]
     }
+
+    # For comparison
+    actual_production = (
+        month_data.copy()
+        .drop(
+            ["demand", "Solar_lim", "Wind_lim", "Natural Gas_lim", "Nuclear_lim"],
+            axis=1,
+        )
+        .set_index("month")
+    )
